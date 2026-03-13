@@ -57,8 +57,8 @@ Make sure you have installed:
 ### 2 Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO
-cd YOUR_REPO
+git clone https://github.com/Jsirpro/Solana-vault-demo
+cd Solana-vault-demo
 ```
 
 ### 3 Run the Frontend
