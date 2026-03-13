@@ -6,7 +6,7 @@ The project includes a smart contract written with the **Anchor Framework** and 
 ## 🚀 Demo
 
 Live Demo (Vercel):  
-👉 **[Demo Link Coming Soon](#)**
+👉 **[https://solana-vault-demo.vercel.app/]**
 
 > The demo frontend allows users to connect their wallet and interact with the Vault on **Solana Devnet**.
 

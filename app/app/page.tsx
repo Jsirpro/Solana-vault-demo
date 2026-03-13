@@ -126,7 +126,7 @@ export default function VaultPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 gap-4">
-      <h1 className="text-4xl font-bold">Blueshift Vault</h1>
+      <h1 className="text-4xl font-bold">jasir's Vault demo</h1>
       <div className="text-sm text-gray-600">
         Network: <span className="font-mono">{clusterLabel || "unknown"}</span>
       </div>
