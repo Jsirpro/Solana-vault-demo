@@ -1,0 +1,182 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Buffer } from "buffer";
+import idl from "../idl/vault.json";
+
+const PROGRAM_ID = new PublicKey(
+  "6k7rcvivNbhrjkuSg4egeywd3KxR4Z7Z57uQHJ3oQhkw"
+);
+
+export default function VaultPage() {
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const [amount, setAmount] = useState("1000000"); // 1 SOL in lamports
+  const [isMounted, setIsMounted] = useState(false);
+  const [walletEnv, setWalletEnv] = useState<{
+    isSecureContext: boolean;
+    hasSolanaProvider: boolean;
+    hasPhantom: boolean;
+  } | null>(null);
+  const [vaultAddress, setVaultAddress] = useState<string>("");
+  const [vaultBalance, setVaultBalance] = useState<number>(0);
+  const [clusterLabel, setClusterLabel] = useState<string>("");
+
+  useEffect(() => {
+    setIsMounted(true);
+    if (typeof window !== "undefined") {
+      const w = window as any;
+      const phantom = w?.phantom?.solana;
+      const solana = w?.solana;
+      setWalletEnv({
+        isSecureContext: window.isSecureContext,
+        hasSolanaProvider: Boolean(phantom || solana),
+        hasPhantom: Boolean(phantom?.isPhantom || solana?.isPhantom),
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const endpoint = connection?.rpcEndpoint ?? "";
+    if (!endpoint) return;
+    if (endpoint.includes("devnet")) setClusterLabel("devnet");
+    else if (endpoint.includes("testnet")) setClusterLabel("testnet");
+    else if (endpoint.includes("mainnet")) setClusterLabel("mainnet-beta");
+    else setClusterLabel(endpoint);
+  }, [connection]);
+
+  const refreshVaultBalance = useCallback(async () => {
+    if (!wallet.publicKey) {
+      setVaultAddress("");
+      setVaultBalance(0);
+      return;
+    }
+    const [vaultPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from("vault"), wallet.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    setVaultAddress(vaultPda.toBase58());
+    try {
+      const accountInfo = await connection.getAccountInfo(vaultPda);
+      const lamports = accountInfo?.lamports ?? 0;
+      setVaultBalance(lamports / LAMPORTS_PER_SOL);
+    } catch (err) {
+      console.error("Failed to fetch vault balance:", err);
+      setVaultBalance(0);
+    }
+  }, [connection, wallet.publicKey]);
+
+  useEffect(() => {
+    refreshVaultBalance();
+  }, [refreshVaultBalance]);
+
+  if (!isMounted) {
+    return null; // Prevent SSR mismatch
+  }
+
+  const getProgram = () => {
+    if (!wallet.publicKey || !wallet.signTransaction) return null;
+    const provider = new AnchorProvider(connection, wallet as any, {
+      commitment: "confirmed",
+    });
+    return new Program(idl as any, provider);
+  };
+
+  const deposit = async () => {
+    const program = getProgram();
+    if (!program || !wallet.publicKey) return;
+
+    try {
+      await program.methods
+        .deposit(new BN(amount))
+        .accounts({
+          signer: wallet.publicKey,
+        })
+        .rpc();
+      await refreshVaultBalance();
+      alert("Deposit successful!");
+    } catch (err) {
+      console.error(err);
+      alert("Deposit failed.");
+    }
+  };
+
+  const withdraw = async () => {
+    const program = getProgram();
+    if (!program || !wallet.publicKey) return;
+
+    try {
+      await program.methods
+        .withdraw()
+        .accounts({
+          signer: wallet.publicKey,
+        })
+        .rpc();
+      await refreshVaultBalance();
+      alert("Withdraw successful!");
+    } catch (err) {
+      console.error(err);
+      alert("Withdraw failed.");
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 gap-4">
+      <h1 className="text-4xl font-bold">Blueshift Vault</h1>
+      <div className="text-sm text-gray-600">
+        Network: <span className="font-mono">{clusterLabel || "unknown"}</span>
+      </div>
+      <div className="text-sm text-gray-600">
+        Vault PDA:{" "}
+        <span className="font-mono">{vaultAddress || "not derived"}</span>
+      </div>
+      <div className="text-sm text-gray-600">
+        Vault Balance: <span className="font-mono">{vaultBalance}</span> SOL
+      </div>
+      {walletEnv && (!walletEnv.isSecureContext || !walletEnv.hasSolanaProvider) && (
+        <div className="max-w-xl text-sm text-red-600 text-center">
+          {!walletEnv.isSecureContext && (
+            <div>
+              This page is not a secure context (HTTPS or localhost). Phantom
+              typically will not inject on insecure origins like
+              `http://192.168.x.x`.
+            </div>
+          )}
+          {!walletEnv.hasSolanaProvider && (
+            <div>
+              No injected wallet provider detected (window.phantom/solana).
+              Confirm Phantom is installed and unlocked, or use HTTPS/localhost.
+            </div>
+          )}
+        </div>
+      )}
+      <WalletMultiButton />
+      {wallet.connected && (
+        <div className="flex flex-col gap-2 mt-4">
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="border p-2 rounded"
+          />
+          <button
+            onClick={deposit}
+            className="bg-green-500 text-white p-2 rounded"
+          >
+            Deposit
+          </button>
+          <button
+            onClick={withdraw}
+            className="bg-red-500 text-white p-2 rounded"
+          >
+            Withdraw
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
